@@ -816,15 +816,40 @@ class Markdownify {
    */
   function handleTag_pre() {
     if ($this->keepHTML && $this->parser->isStartTag) {
-      # check if a simple <code> follows
-      if (!preg_match('#^\s*<code\s*>#Us', $this->parser->html)) {
+      # check if a simple <code> or <code class=""> follows
+      $this->parser->prelang = '';
+      $code_match = preg_match('#^\s*<code\s*(class="' . preg_quote(MARKDOWN_CODE_CLASS_PREFIX, '#') . '([^"]+)\s*)?">#Us', $this->parser->html, $language);
+      
+      if ($code_match) {
+        $this->parser->prelang = !empty($language[2]) ? $language[2] : '';
+        
+        $this->out('```' . $this->parser->prelang . "\n");
+        
+        $this->buffer();
+      } else {
         # this is no standard markdown code block
         $this->handleTagToText();
         return;
       }
     }
-    $this->indent('    ');
+    
+    if ($this->parser->prelang == '') {
+      $this->indent('    ');
+    }
+    
     if (!$this->parser->isStartTag) {
+      if ($this->parser->prelang != '') {
+        $buffer = $this->unbuffer();
+        $buffer = preg_replace('#</?code[^>]*>#', '', $buffer);
+        $buffer = $this->decode($buffer);
+        
+        $this->out($buffer);
+        $this->setLineBreaks(1);
+        $this->out('```');
+        
+        $this->parser->prelang = '';
+      }
+      
       $this->setLineBreaks(2);
     } else {
       $this->parser->html = ltrim($this->parser->html);
